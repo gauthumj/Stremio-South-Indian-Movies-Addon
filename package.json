@@ -2,11 +2,13 @@
 	"name": "stremio-addon-South",
 	"version": "0.0.1",
 	"description": "Catalog for south indian content. Includes the following languages - Tamil, Malayalam, Telugu and Kannada.",
+	"engineStrict": false,
 	"scripts": {
 		"start": "node server.js"
 	},
 	"dependencies": {
 		"axios": "^1.12.2",
+		"dotenv": "^17.2.3",
 		"stremio-addon-sdk": "1.1.x"
 	}
 }
