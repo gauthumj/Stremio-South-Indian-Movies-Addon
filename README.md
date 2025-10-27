@@ -32,3 +32,7 @@ You can configure the addon using environment variables in the `.env` file:
  - `TMDB_API_KEY`: Your TMDB API key for fetching content.
 ## Contributing
  Contributions are welcome! If you have any ideas, bug fixes, or improvements, feel free to open an issue or submit a pull request.
+## Future Improvements
+- Add a configuration page for easier setup.
+- Implement TV show support.
+- Display cast and crew information - Requires making a second call to TMDB which may increase load times.

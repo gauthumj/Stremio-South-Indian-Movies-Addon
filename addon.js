@@ -1,12 +1,10 @@
 const { addonBuilder } = require("stremio-addon-sdk");
 const axios = require("axios");
-const { loadEnvFile } = require("node:process");
-const dotenv = require("dotenv");
+const { fetchTmdbWithRetry } = require("./utils/fetchTmdb");
 // Docs: https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/responses/manifest.md
 
-dotenv.config();
+// dotenv.config();
 
-const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = "https://api.themoviedb.org/";
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
 
@@ -54,7 +52,7 @@ const manifest = {
       extra: [
         {
           name: "genre",
-          options: ["New", "Action", "Comedy", "Drama", "Thriller"],
+          options: ["New", "Action", "Comedy", "Drama", "Thriller", "Crime"],
         },
         { name: "skip" },
       ],
@@ -66,7 +64,7 @@ const manifest = {
       extra: [
         {
           name: "genre",
-          options: ["New", "Action", "Comedy", "Drama", "Thriller"],
+          options: ["New", "Action", "Comedy", "Drama", "Thriller", "Crime"],
         },
         { name: "skip" },
       ],
@@ -78,7 +76,7 @@ const manifest = {
       extra: [
         {
           name: "genre",
-          options: ["New", "Action", "Comedy", "Drama", "Thriller"],
+          options: ["New", "Action", "Comedy", "Drama", "Thriller", "Crime"],
         },
         { name: "skip" },
       ],
@@ -107,27 +105,20 @@ async function getTmdbCatalog(languageCode, page = 1, genre = "Top") {
   const tmdbGenreId = genreMap[genre];
 
   if (tmdbGenreId) {
-    // If it's a true genre (e.g., Action, Comedy), use with_genres
-    params.sort_by = "popularity.desc"; // Default sorting for genre lists
+    params.sort_by = "primary_release_date.desc"; // Default sorting for genre lists
     params.with_genres = tmdbGenreId;
   } else if (genre === "New") {
     // Sort by release date for "New" content
     params.sort_by = "primary_release_date.desc";
     params["primary_release_date.lte"] = new Date().toISOString().split("T")[0]; // Only show released films
   } else {
-    // "Top" or any other default
     // Sort by popularity for "Top" content (default)
     params.sort_by = "popularity.desc";
   }
 
   try {
     // Step 1: Get the list of movies
-    const response = await axios.get(tmdbUrl, {
-      params: params,
-      headers: {
-        Authorization: `Bearer ${TMDB_API_KEY}`,
-      },
-    });
+    const response = await fetchTmdbWithRetry(tmdbUrl, params);
 
     const tmdbMovies = response.data.results;
     const metas = tmdbMovies.map((movie) => {
@@ -179,11 +170,7 @@ builder.defineMetaHandler(async (args) => {
   const tmdbId = args.id.replace("tmdb_", "");
   const movieUrl = `${TMDB_BASE_URL}/3/movie/${tmdbId}`;
   try {
-    const response = await axios.get(movieUrl, {
-      headers: {
-        Authorization: `Bearer ${TMDB_API_KEY}`,
-      },
-    });
+    const response = await fetchTmdbWithRetry(movieUrl);
     const movie = response.data;
     const releaseYear = movie.release_date
       ? movie.release_date.split("-")[0]
