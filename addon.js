@@ -176,8 +176,6 @@ builder.defineMetaHandler(async (args) => {
       ? movie.release_date.split("-")[0]
       : "N/A";
 
-    console.log("Fetched movie meta:", movie);
-
     return {
       meta: {
         // id: args.id,
