@@ -27,7 +27,7 @@ const whiteListGenres = [
 
 const manifest = {
   id: "community.South",
-  version: "0.0.1",
+  version: "1.0.0",
   catalogs: [
     {
       type: "movie",
