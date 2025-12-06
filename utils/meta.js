@@ -15,7 +15,7 @@ async function getMovieMeta(tmdbId, originalId) {
     : "N/A";
   return {
     meta: {
-      id: originalId || (movie.imdb_id ? movie.imdb_id : `tmdb_${movie.id}`),
+      id: (movie.imdb_id ? movie.imdb_id : `tmdb_${movie.id}`) || originalId,
       imdb_id: movie.imdb_id || undefined,
       type: "movie",
       name: movie.title,
