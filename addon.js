@@ -1,45 +1,29 @@
 const { addonBuilder } = require("stremio-addon-sdk");
-const axios = require("axios");
-const { fetchTmdbWithRetry } = require("./utils/fetchTmdb");
+const { discoverMovies, searchMovies } = require("./utils/tmdbApi");
+const { getMovieMeta } = require("./utils/meta");
+const {
+  TMDB_IMAGE_BASE_URL,
+  TMDB_BASE_URL,
+  languagesMap,
+} = require("./utils/constants");
+const { genreMap, getTmdbGenre } = require("./utils/genres");
+const { toMetaFromTmdbMovie, safeImage } = require("./utils/helpers");
 // Docs: https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/responses/manifest.md
 
-// dotenv.config();
+// Constants and helpers have been moved to utils/constants.js and other utils
 
-const TMDB_BASE_URL = "https://api.themoviedb.org/";
-const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
-
-// console.log(TMDB_API_KEY);
-
-// Define the TMDB language codes for South Indian languages
-const southIndianLanguages = [
-  "te", // Telugu
-  "ta", // Tamil
-  "ml", // Malayalam
-  "kn", // Kannada
+// genreMap moved to utils/genres.js
+// Add a small white-list of genres for the addon UI (keeps the manifest simple)
+const whiteListGenres = [
+  "New",
+  "Action",
+  "Comedy",
+  "Drama",
+  "Thriller",
+  "Crime",
 ];
 
-const languagesMap = {
-  telugu: "te",
-  tamil: "ta",
-  malayalam: "ml",
-  kannada: "kn",
-};
-
-const genreMap = {
-  Action: 28,
-  Adventure: 12,
-  Animation: 16,
-  Comedy: 35,
-  Crime: 80,
-  Drama: 18,
-  Family: 10751,
-  Fantasy: 14,
-  Horror: 27,
-  Mystery: 9648,
-  Romance: 10749,
-  "Science Fiction": 878,
-  Thriller: 53,
-};
+// genreMap is provided by ./utils/genres.js
 
 const manifest = {
   id: "community.South",
@@ -50,10 +34,8 @@ const manifest = {
       id: "tmdb_popular_tamil",
       name: "Tamil Movies",
       extra: [
-        {
-          name: "genre",
-          options: ["New", "Action", "Comedy", "Drama", "Thriller", "Crime"],
-        },
+        { name: "search", isRequired: false },
+        { name: "genre", options: whiteListGenres },
         { name: "skip" },
       ],
     },
@@ -62,10 +44,8 @@ const manifest = {
       id: "tmdb_popular_telugu",
       name: "Telugu Movies",
       extra: [
-        {
-          name: "genre",
-          options: ["New", "Action", "Comedy", "Drama", "Thriller", "Crime"],
-        },
+        { name: "search", isRequired: false },
+        { name: "genre", options: whiteListGenres },
         { name: "skip" },
       ],
     },
@@ -74,10 +54,8 @@ const manifest = {
       id: "tmdb_popular_malayalam",
       name: "Malayalam Movies",
       extra: [
-        {
-          name: "genre",
-          options: ["New", "Action", "Comedy", "Drama", "Thriller", "Crime"],
-        },
+        { name: "search", isRequired: false },
+        { name: "genre", options: whiteListGenres },
         { name: "skip" },
       ],
     },
@@ -85,7 +63,7 @@ const manifest = {
   ],
   idPrefixes: ["tmdb_", "tt"],
   resources: ["catalog", "meta"],
-  types: ["movie", "series"],
+  types: ["movie"],
   name: "South Indian Content",
   description:
     "Catalog for south indian content. Includes the following languages - Tamil, Malayalam, Telugu and Kannada.",
@@ -93,11 +71,10 @@ const manifest = {
 const builder = new addonBuilder(manifest);
 
 async function getTmdbCatalog(languageCode, page = 1, genre = "Top") {
-  const tmdbUrl = `${TMDB_BASE_URL}/3/discover/movie`;
-
   // Initialize parameters with defaults
   const params = {
     with_original_language: languageCode,
+    with_release_type: "2|3", // Theatrical and Digital releases
     page: page,
   };
 
@@ -117,33 +94,39 @@ async function getTmdbCatalog(languageCode, page = 1, genre = "Top") {
   }
 
   try {
-    // Step 1: Get the list of movies
-    const response = await fetchTmdbWithRetry(tmdbUrl, params);
-
-    const tmdbMovies = response.data.results;
-    const metas = tmdbMovies.map((movie) => {
-      return {
-        id: `tmdb_${movie.id}`,
-        imdb_id: undefined, // Leaving this as undefined to avoid rate limiting
-        type: "movie",
-        name: movie.title,
-        poster: `${TMDB_IMAGE_BASE_URL}${movie.poster_path}`,
-        posterShape: "poster",
-        description: movie.overview,
-        releaseInfo: movie.release_date
-          ? movie.release_date.split("-")[0]
-          : "N/A",
-        genres: movie.genre_ids.map((id) => getTmdbGenre(id)),
-      };
-    });
-
+    const response = await discoverMovies(params);
+    const tmdbMovies = response.data.results || [];
+    const metas = tmdbMovies
+      .map((movie) => toMetaFromTmdbMovie(movie))
+      .filter(Boolean);
     return { metas };
   } catch (error) {
-    console.error("Error fetching TMDB catalog:", error.message);
-    // Log the full error to see what TMDB returned (e.g., 401 Unauthorized)
+    console.error("Error fetching TMDB catalog:", error.message || error);
     if (error.response) {
       console.error("TMDB Response Data:", error.response.data);
     }
+    return { metas: [] };
+  }
+}
+
+// Helper function for search
+async function searchTmdbMovies(languageCode, query, page = 1) {
+  try {
+    const response = await searchMovies({
+      query,
+      with_original_language: languageCode,
+      page,
+    });
+    const tmdbMovies = response.data.results || [];
+    const metas = tmdbMovies
+      .map((movie) => {
+        if (movie.original_language !== languageCode) return null;
+        return toMetaFromTmdbMovie(movie);
+      })
+      .filter(Boolean);
+    return { metas };
+  } catch (error) {
+    console.error("Error searching TMDB movies:", error.message || error);
     return { metas: [] };
   }
 }
@@ -152,81 +135,30 @@ async function getTmdbCatalog(languageCode, page = 1, genre = "Top") {
 builder.defineCatalogHandler(async (args) => {
   const { id, extra } = args;
   // Get the genre filter, defaulting to "Top" if not provided
-  const genre = extra.genre || "Top";
-  const page = extra.skip ? Math.floor(extra.skip / 20) + 1 : 1;
+  const genre = (extra && extra.genre) || "Top";
+  const page = extra && extra.skip ? Math.floor(extra.skip / 20) + 1 : 1;
 
-  const languageCode = languagesMap[id.replace("tmdb_popular_", "")];
+  const language = id.replace("tmdb_popular_", "").toLowerCase();
+  const languageCode = languagesMap[language];
+  // console.log("Language code for catalog:", languageCode);
 
   if (!languageCode) {
     return Promise.reject(new Error("Invalid catalog ID"));
   }
-
-  // Pass the new genre parameter
-  return getTmdbCatalog(languageCode, page, genre);
+  if (args.extra && args.extra.search) {
+    return searchTmdbMovies(languageCode, args.extra.search, page);
+  } else {
+    return getTmdbCatalog(languageCode, page, genre);
+  }
 });
+
+// getMovieMeta is now implemented in utils/meta.js and imported at the top
 
 // A meta handler is not strictly needed for this type of addon, but including a basic one is good practice
 builder.defineMetaHandler(async (args) => {
   const tmdbId = args.id.replace("tmdb_", "");
-  const movieUrl = `${TMDB_BASE_URL}/3/movie/${tmdbId}`;
-  try {
-    const response = await fetchTmdbWithRetry(movieUrl);
-    const movie = response.data;
-    const releaseYear = movie.release_date
-      ? movie.release_date.split("-")[0]
-      : "N/A";
-
-    return {
-      meta: {
-        // id: args.id,
-        id: movie.imdb_id ? movie.imdb_id : `tmdb_${movie.id}`,
-        imdb_id: movie.imdb_id,
-        type: "movie",
-        name: movie.title,
-        poster: `${TMDB_IMAGE_BASE_URL}${movie.poster_path}`,
-        description: movie.overview,
-        releaseInfo: releaseYear,
-        genres: movie.genres.map((g) => g.name),
-        background: `${TMDB_IMAGE_BASE_URL}${movie.backdrop_path}`,
-
-        // Other meta properties
-      },
-    };
-  } catch (error) {
-    console.error("Error fetching movie meta:", error.message);
-    return Promise.reject(new Error("Movie not found"));
-  }
+  return getMovieMeta(tmdbId, args.id);
 });
 
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// Fallback for genres
-function getTmdbGenre(genreId) {
-  // TMDB has a genre list endpoint you can call, but for simplicity, we can
-  // create a static map.
-  const genres = {
-    28: "Action",
-    12: "Adventure",
-    16: "Animation",
-    35: "Comedy",
-    80: "Crime",
-    99: "Documentary",
-    18: "Drama",
-    10751: "Family",
-    14: "Fantasy",
-    36: "History",
-    27: "Horror",
-    10402: "Music",
-    9648: "Mystery",
-    10749: "Romance",
-    878: "Science Fiction",
-    10770: "TV Movie",
-    53: "Thriller",
-    10752: "War",
-    37: "Western",
-  };
-  return genres[genreId] || "Unknown";
-}
+// We use the getTmdbGenre helper in utils/genres.js; this file keeps a reference
 module.exports = builder.getInterface();

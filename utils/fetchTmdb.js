@@ -1,6 +1,6 @@
-import axios from "axios";
-
-process.loadEnvFile("./.env");
+const axios = require("axios");
+// Load environment variables using dotenv instead of a nonstandard process API
+require("dotenv").config();
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 
 /**
@@ -19,7 +19,7 @@ function sleep(ms) {
  * @param {number} delayMs - Delay in milliseconds between retries (default: 1000).
  * @returns {Promise<any>} The response data from TMDB.
  */
-export async function fetchTmdbWithRetry(
+async function fetchTmdbWithRetry(
   url,
   params = {},
   maxRetries = 5,
@@ -34,7 +34,7 @@ export async function fetchTmdbWithRetry(
         params: params,
         headers: { Authorization: `Bearer ${TMDB_API_KEY}` },
       });
-      return response; // Return data on success
+      return response; // Return response on success
     } catch (error) {
       const isFinalAttempt = i === maxRetries - 1;
 
@@ -57,3 +57,6 @@ export async function fetchTmdbWithRetry(
     }
   }
 }
+module.exports = {
+  fetchTmdbWithRetry,
+};
