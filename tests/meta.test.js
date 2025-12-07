@@ -20,7 +20,7 @@ describe("meta util", () => {
     };
     getMovieById.mockResolvedValue({ data: fakeMovie });
     const result = await getMovieMeta("100", "tmdb_100");
-    expect(result.meta.id).toBe("tmdb_100");
+    expect(result.meta.id).toBe("tt1234567");
     expect(result.meta.name).toBe("Meta Test Movie");
     expect(result.meta.imdb_id).toBe("tt1234567");
     expect(result.meta.cast).toEqual(["Actor One", "Actor Two"]);

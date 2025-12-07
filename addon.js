@@ -74,6 +74,7 @@ async function getTmdbCatalog(languageCode, page = 1, genre = "Top") {
   // Initialize parameters with defaults
   const params = {
     with_original_language: languageCode,
+    with_release_date_lte: new Date().toISOString().split("T")[0],
     with_release_type: "2|3", // Theatrical and Digital releases
     page: page,
   };
