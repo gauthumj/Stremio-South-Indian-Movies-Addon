@@ -2,9 +2,9 @@ const { getMovieById } = require("./tmdbApi");
 const { safeImage } = require("./helpers");
 const logger = require("./logger");
 
-async function getMovieMeta(tmdbId, originalId) {
+async function getMovieMeta(tmdbId, originalId, apiKey) {
   logger.info("Fetching movie meta", { tmdbId, originalId });
-  const response = await getMovieById(tmdbId, {
+  const response = await getMovieById(tmdbId, apiKey, {
     append_to_response: "credits",
   });
   const movie = response.data;

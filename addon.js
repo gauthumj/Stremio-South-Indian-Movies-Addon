@@ -8,6 +8,7 @@ const {
 } = require("./utils/constants");
 const { genreMap, getTmdbGenre } = require("./utils/genres");
 const { toMetaFromTmdbMovie, safeImage } = require("./utils/helpers");
+const { configDotenv } = require("dotenv");
 // Docs: https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/responses/manifest.md
 
 // Constants and helpers have been moved to utils/constants.js and other utils
@@ -27,7 +28,7 @@ const whiteListGenres = [
 
 const manifest = {
   id: "community.South",
-  version: "1.0.0",
+  version: "1.1.0",
   catalogs: [
     {
       type: "movie",
@@ -67,10 +68,23 @@ const manifest = {
   name: "South Indian Content",
   description:
     "Catalog for south indian content. Includes the following languages - Tamil, Malayalam, Telugu and Kannada.",
+  behaviorHints: {
+    configurable: true,
+    configurationRequired: true,
+  },
+  config: [
+    {
+      key: "TMDB_API_KEY",
+      type: "text",
+      title:
+        "Your TMDB API Key (get the read access token from https://www.themoviedb.org/settings/api)",
+      required: true,
+    },
+  ],
 };
 const builder = new addonBuilder(manifest);
 
-async function getTmdbCatalog(languageCode, page = 1, genre = "Top") {
+async function getTmdbCatalog(languageCode, page = 1, genre = "Top", apiKey) {
   // Initialize parameters with defaults
   const params = {
     with_original_language: languageCode,
@@ -95,7 +109,7 @@ async function getTmdbCatalog(languageCode, page = 1, genre = "Top") {
   }
 
   try {
-    const response = await discoverMovies(params);
+    const response = await discoverMovies(params, apiKey);
     const tmdbMovies = response.data.results || [];
     const metas = tmdbMovies
       .map((movie) => toMetaFromTmdbMovie(movie))
@@ -111,13 +125,16 @@ async function getTmdbCatalog(languageCode, page = 1, genre = "Top") {
 }
 
 // Helper function for search
-async function searchTmdbMovies(languageCode, query, page = 1) {
+async function searchTmdbMovies(languageCode, query, page = 1, apiKey) {
   try {
-    const response = await searchMovies({
-      query,
-      with_original_language: languageCode,
-      page,
-    });
+    const response = await searchMovies(
+      {
+        query,
+        with_original_language: languageCode,
+        page,
+      },
+      apiKey
+    );
     const tmdbMovies = response.data.results || [];
     const metas = tmdbMovies
       .map((movie) => {
@@ -134,8 +151,15 @@ async function searchTmdbMovies(languageCode, query, page = 1) {
 
 // Handler for the catalog
 builder.defineCatalogHandler(async (args) => {
+  // Prefer the key provided by the installer via args.config, fall back to
+  // the server's environment variable for a shared/global key.
+  const apiKey = args.config?.TMDB_API_KEY || process.env.TMDB_API_KEY;
+  if (!apiKey) {
+    console.warn("TMDB_API_KEY missing from args.config and process.env");
+    return { metas: [] };
+  }
+
   const { id, extra } = args;
-  // Get the genre filter, defaulting to "Top" if not provided
   const genre = (extra && extra.genre) || "Top";
   const page = extra && extra.skip ? Math.floor(extra.skip / 20) + 1 : 1;
 
@@ -147,9 +171,9 @@ builder.defineCatalogHandler(async (args) => {
     return Promise.reject(new Error("Invalid catalog ID"));
   }
   if (args.extra && args.extra.search) {
-    return searchTmdbMovies(languageCode, args.extra.search, page);
+    return searchTmdbMovies(languageCode, args.extra.search, page, apiKey);
   } else {
-    return getTmdbCatalog(languageCode, page, genre);
+    return getTmdbCatalog(languageCode, page, genre, apiKey);
   }
 });
 
@@ -157,8 +181,14 @@ builder.defineCatalogHandler(async (args) => {
 
 // A meta handler is not strictly needed for this type of addon, but including a basic one is good practice
 builder.defineMetaHandler(async (args) => {
+  const apiKey = args.config?.TMDB_API_KEY || process.env.TMDB_API_KEY;
+  if (!apiKey) {
+    console.warn("TMDB_API_KEY missing from args.config and process.env");
+    return Promise.reject(new Error("TMDB API key not configured"));
+  }
+
   const tmdbId = args.id.replace("tmdb_", "");
-  return getMovieMeta(tmdbId, args.id);
+  return getMovieMeta(tmdbId, args.id, apiKey);
 });
 
 // We use the getTmdbGenre helper in utils/genres.js; this file keeps a reference

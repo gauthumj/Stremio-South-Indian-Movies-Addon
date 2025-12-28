@@ -22,17 +22,19 @@ function sleep(ms) {
 async function fetchTmdbWithRetry(
   url,
   params = {},
+  apiKey = TMDB_API_KEY,
   maxRetries = 5,
   delayMs = 2000
 ) {
-  // 1. Inject the hardcoded API key and set English language for consistent meta data
+  if (!apiKey) {
+    throw new Error("TMDB API key is required to make requests to TMDB");
+  }
 
   for (let i = 0; i < maxRetries; i++) {
     try {
-      // 2. Make the request with the combined parameters
       const response = await axios.get(url, {
         params: params,
-        headers: { Authorization: `Bearer ${TMDB_API_KEY}` },
+        headers: { Authorization: `Bearer ${apiKey}` },
       });
       return response; // Return response on success
     } catch (error) {
