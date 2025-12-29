@@ -77,7 +77,7 @@ const manifest = {
       key: "TMDB_API_KEY",
       type: "text",
       title:
-        "Your TMDB API Key (get the read access token from https://www.themoviedb.org/settings/api)",
+        "Your TMDB API Key (get your <strong>free</strong> key from <a target='_blank' href='https://www.themoviedb.org/settings/api'>TMDB</a>)",
       required: true,
     },
   ],
