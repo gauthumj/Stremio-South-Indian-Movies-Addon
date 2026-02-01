@@ -24,7 +24,7 @@ async function fetchTmdbWithRetry(
   params = {},
   apiKey = TMDB_API_KEY,
   maxRetries = 5,
-  delayMs = 2000
+  delayMs = 2000,
 ) {
   if (!apiKey) {
     throw new Error("TMDB API key is required to make requests to TMDB");
@@ -42,9 +42,16 @@ async function fetchTmdbWithRetry(
 
       const status = error.response ? error.response.status : "Network Error";
 
+      if (status === 401) {
+        console.error(
+          "TMDB Request failed: Unauthorized (401). Check your API key.",
+        );
+        throw error; // Do not retry on unauthorized errors
+      }
+
       if (isFinalAttempt) {
         console.error(
-          `TMDB Request failed after ${maxRetries} attempts. Last error: Status ${status}, Message: ${error.message}`
+          `TMDB Request failed after ${maxRetries} attempts. Last error: Status ${status}, Message: ${error.message}`,
         );
         throw error;
       }
@@ -52,7 +59,7 @@ async function fetchTmdbWithRetry(
       console.warn(
         `TMDB Request failed (Status: ${status}). Retrying in ${delayMs}ms... (Attempt ${
           i + 1
-        }/${maxRetries})`
+        }/${maxRetries})`,
       );
       await sleep(delayMs);
       delayMs *= 1.5; // Exponential backoff
